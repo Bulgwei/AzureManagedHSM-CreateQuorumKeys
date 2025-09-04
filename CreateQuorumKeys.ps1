@@ -53,8 +53,7 @@ Param (
     [Parameter(Mandatory=$false)]
     [ValidateRange(5,30)][int]$ValidityTime = 5,
     [Parameter(Mandatory=$false)]
-    [ValidateSet(2048,3084,4096)][int]$KeyLength = 2048,
-    [switch]$Enroll2SmartCard
+    [ValidateSet(2048,3084,4096)][int]$KeyLength = 2048
 )
 
 if ($psISE) {
@@ -160,15 +159,6 @@ if (!$Subject) {
 }
 
 Write-Message -Message "Creating Key for enrollment subject: $($Subject)"
-if ($Enroll2SmartCard) {
-    Write-Message -Message "  Enrolling keys to smart card!"
-    Write-Message -Message "  "
-    Write-Message -Message "  The smart card MUST already be prepared for usage!"
-    read-host -prompt "  Ensure, the smart card is inserted into the reader before continuing ...`n`r  --> PRESS ENTER WHEN READY" |out-null
-    Write-Message -Message "  "
-} else {
-    Write-Message -Message "  Enrolling keys in software!"
-} 
 Write-Message -Message "Key files storage location: $($FilePath)"
 Write-Message -Message "Existing files at $($FilePath) for $($Subject) will be overwritten!!!"
 Write-Message -Message " checking for key files at $($FilePath)..."
@@ -190,34 +180,19 @@ if (Test-Path "$($CertExportFileName).*") {
 }
 
 if (!$failed) {
-    if ($Enroll2SmartCard) {
-        $params = @{
-            Type = 'Custom'
-            Provider = 'Microsoft Smart Card Key Storage Provider'
-            Subject = $Subject
-            TextExtension = @(
-                '2.5.29.37={text}1.3.6.1.5.5.7.3.2')
-            KeyExportPolicy = 'NonExportable'
-            KeyUsage = 'DigitalSignature'
-            KeyAlgorithm = $KeyAlgo
-            KeyLength = $keylength
-            CertStoreLocation = 'Cert:\CurrentUser\My'
-            NotAfter = (Get-Date).AddYears($ValidityTime) 
-            FriendlyName = "$Subject"
-        }
-    } else {
-        $params = @{
-            TextExtension = @(
-                '2.5.29.37={text}1.3.6.1.5.5.7.3.2')
-            Subject = $Subject 
-            CertStoreLocation = "Cert:\CurrentUser\My" 
-            KeySpec = 'Signature' 
-            KeyAlgorithm = $KeyAlgo
-            KeyLength  = $KeyLength 
-            KeyExportPolicy = 'Exportable' 
-            NotAfter = (Get-Date).AddYears($ValidityTime) 
-            FriendlyName = "$Subject"
-        }
+    $params = @{
+        TextExtension = @(
+            '2.5.29.37={text}1.3.6.1.5.5.7.3.2')
+        Provider = 'Microsoft Software Key Storage Provider'
+        Subject = $Subject 
+        CertStoreLocation = "Cert:\CurrentUser\My" 
+        KeyUsage = 'DigitalSignature'
+        KeySpec = 'Signature' 
+        KeyAlgorithm = $KeyAlgo
+        KeyLength  = $KeyLength 
+        KeyExportPolicy = 'Exportable' 
+        NotAfter = (Get-Date).AddYears($ValidityTime) 
+        FriendlyName = "$Subject"
     }
     Write-Message -Message "Key parameters:"
     Write-Message -Message " Key algorithm: $($KeyAlgo)"
@@ -245,7 +220,7 @@ if (!$failed) {
             $failed = $true
         }
         
-        if ((!$failed) and (!$Enroll2SmartCard)) {
+        if (!$failed) {
             Write-Message -Message "creating PKCS12 protected key file ..."
             #create password for p12 file
             $exitLoop = $false
@@ -288,17 +263,11 @@ if ($failed) {
     Write-Message -Message " Review errors messages and correct any issue before continuing !" -Type Failure
 } else {
     Write-Message -Message " Azure Managed HSM Key Creation Ceremony completed successfully !" -Type Success
-    if (!$Enroll2SmartCard) {
-        Write-Message -Message " Please ensure that you are keeping the keys in a secure place" -Type Success
-        Write-Message -Message " and properly protected." -Type Success
-        Write-Message -Message " NEVER GIVE ANYONE ELSE ACCESS TO YOUR KEYS." -Type Success
-        Write-Message -Message " "
-        Write-Message -Message " Store your password in an sealed and enveloped letter for emergencies!" -Type Success
-    } else {
-        Write-Message -Message " Private key is enrolled in smart card crypto hardware" -Type Success
-        Write-Message -Message " and protected by smart card PIN." -Type Success
-        Write-Message -Message " "
-    }
+    Write-Message -Message " Please ensure that you are keeping the keys in a secure place" -Type Success
+    Write-Message -Message " and properly protected." -Type Success
+    Write-Message -Message " NEVER GIVE ANYONE ELSE ACCESS TO YOUR KEYS." -Type Success
+    Write-Message -Message " "
+    Write-Message -Message " Store your password in an sealed and enveloped letter for emergencies!" -Type Success
 }
 Write-Message -Message " "
 Write-Message -Message "#################################################################"
