@@ -44,7 +44,7 @@
 #>
 Param (
     [Parameter(Mandatory=$false)]
-    [String]$FilePath
+    [String]$PfxFileName
 )
 
 # loading .net classes needed
@@ -176,51 +176,61 @@ Write-Message -Message "Starting Key Recovery Key Extraction Ceremony at: $(Get-
 Write-Message -Message " "
 
 
-if ($FilePath) {
+if ($PfxFileName) {
       #does filespath exist?
-      if (Test-Path $FilePath) {
+      if (Test-Path $PfxFileName) {
             #if so, convert to filesystem object
-            $FilePath = Get-Item $FilePath
+            $FilePath = Get-Item $PfxFileName
       } else {
-            Write-Message -Message " $($FilePath) not found!" -Type Failure
+            Write-Message -Message " $($PfxFileName) not found!" -Type Failure
             Write-Message -Message " opening file selector ..."
-            $FilePath = $null
+            $PfxFileName = $null
       }
 }
-If (!$FilePath) {
-    $FilePath = Select-Pkcsfile
-    if(!$FilePath){
+If (!$PfxFileName) {
+    $PfxFileName = Select-Pkcsfile
+    if(!$PfxFileName){
         Write-Message -Message " No PKCS#12 key file selected!`r`nAborting ..." -Type Failure
         $failed = $true
         Exit
+    } else {
+        if (Test-Path $PfxFileName) {
+            #if so, convert to filesystem object
+            $FilePath = Get-Item $PfxFileName
+        } else {
+            Write-Message -Message " $($PfxFileName) not found!" -Type Failure
+            Write-Message -Message " Aborting ..." -Type Failure
+            $failed = $true
+            Exit
+        }
     }
 }
 
 Write-Message -Message "$($FilePath.FullName) selected!" -Type Success
-$KeyFileName = "$($FilePath.DirectoryName)\$($FilePath.BaseName).pem"
+$KeyFileName = "$($FilePath.DirectoryName)\$($FilePath.BaseName).key"
 
 #get password for p12 file
 $exitLoop = $false
 do {
-      $passwd = Read-Host -Prompt "Enter password for $($FilePath)" -AsSecureString
-      if (!(Check-PwdValid -P12File $FilePath -Pwd $passwd)) {
-            Write-Message -Message " The passwords do not work for $($FilePath) - please try again ..." -Type Failure
+      $passwd = Read-Host -Prompt "Enter password for $($FilePath.FullName)" -AsSecureString
+      if (!(Check-PwdValid -P12File $($FilePath.FullName) -Pwd $passwd)) {
+            Write-Message -Message " The passwords do not work for $($FilePath.FullName) - please try again ..." -Type Failure
       } else {
             $EncPwd = Decrypt-SecString -SecStr $passwd
             $exitLoop = $true
       }
 } while (!$exitLoop)
 
-Write-Message -Message " Accessing PKCS12 file $($FilePath) ..."
+Write-Message -Message " Accessing PKCS12 file $($FilePath.FullName) ..."
 try {
       #Password must be a plain string, not a securestring (needs to be converted as we treat any pwd as sec string)
       $cert=New-Object System.Security.Cryptography.X509Certificates.X509Certificate2( 
             $FilePath, 
             $EncPwd, 
             [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
-      Write-Message -Message " $($FilePath) successfully opened!" -Type Success
+      Write-Message -Message " $($FilePath.FullName) successfully opened!" -Type Success
 } catch {
-      Write-Message -Message " Opening $($FilePath) failed with error: `r`n$($_.Exception.Message)`r`n`r`nAborting ..." -Type Failure
+      Write-Message -Message " Opening $($FilePath.FullName) failed with error: `r`n$($_.Exception.Message)`r`n`r`nAborting ..." -Type Failure
       $failed = $true
 }
 
@@ -266,9 +276,9 @@ if (!$failed) {
             try {
                   #include base64 string into mandatory envelop
                   $KeyPem = @"
------BEGIN PRIVATE KEY-----
+-----BEGIN RSA PRIVATE KEY-----
 $KeyBase64
------END PRIVATE KEY-----
+-----END RSA PRIVATE KEY-----
 "@
                   $KeyPem | Out-File -Encoding utf8 $KeyFileName -ErrorAction Stop
                   Write-Message -Message " Success!" -Type Success
@@ -288,7 +298,8 @@ if ($failed) {
 } else {
     Write-Message -Message " Azure Managed HSM Recovery Key Extraction Ceremony completed successfully !" -Type Success
       Write-Message -Message " Please ensure that you are deleting the PEM keys after usage !" -Type Success
-      Write-Message -Message " NEVER GIVE ANYONE ELSE ACCESS TO YOUR PEM KEY FILE." -Type Success
+      Write-Message -Message " NEVER GIVE ANYONE ELSE ACCESS TO YOUR KEY FILE." -Type Success
+      Write-Message -Message " KEY FILE: $($KeyFileName)" -Type Success
 }
 Write-Message -Message " "
 Write-Message -Message "#################################################################"
