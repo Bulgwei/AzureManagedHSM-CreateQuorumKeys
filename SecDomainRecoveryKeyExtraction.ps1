@@ -21,7 +21,7 @@
 #
 #################
 # 
-# by dagmar.heidecker@microsoft.com
+# by andreas.luy@microsoft.con & dagmar.heidecker@microsoft.com
 # 
 #
 .Synopsis
@@ -120,10 +120,55 @@ function Check-PwdValid
       return $ret      
 }
 
+function Check-PoSPrereqs {
+      $ret = $true
+      
+      #PowerShell 7.x or higher required
+      if (($PSVersionTable.PSVersion.Major) -lt 7) {
+            $ret = $false
+      }
+      return $ret
+}
+
 ##
 ## main program starts here
 ##
+#region Prepare console window
+if ($host.name -eq 'ConsoleHost') {
+    try {
+        $pshost = get-host
+        $pswindow = $pshost.ui.rawui
+        $newsize = $pswindow.buffersize
+        $newsize.height = 60
+        $newsize.width = 60
+        $pswindow.buffersize = $newsize
+        $newsize = $pswindow.windowsize
+        $newsize.height = 60
+        $newsize.width = 140
+        $pswindow.windowsize = $newsize
+    } catch {
+        #issues with resizing...
+        #anyway no need to do something
+    }
+    Clear-Host
+
+    $pswindow.windowtitle = "Azure Managed HSM Secure Domain Recovery KeyExtraction Ceremony"
+    $pswindow.foregroundcolor = "White"
+    $pswindow.backgroundcolor = "Black"
+}
+
+#endregion
+
+#we assume all goes well
 $failed = $false
+
+if (!(Check-PoSPrereqs)) {
+      $failed = $true
+      Write-Message -Message "########################################################" 
+      Write-Message -Message "  PowerShell 7.x or higher is required for running this script!" -Type Failure
+      Write-Message -Message "########################################################"
+      Exit
+}
 
 #works for PoS 5+
 Write-Message -Message "########################################################"
@@ -194,7 +239,8 @@ if (!$failed) {
             Write-Message -Message " Extracting private key blob ..."
             try {
                   #Get private key as bytes array (blob)
-                  $KeyBytes = $RSACng.Key.Export([Security.Cryptography.CngKeyBlobFormat]::Pkcs8PrivateBlob)
+                  $KeyBytes = $rsaCng.ExportRSAPrivateKey()
+                  #$KeyBytes = $RSACng.Key.Export([Security.Cryptography.CngKeyBlobFormat]::Pkcs8PrivateBlob)
                   Write-Message -Message " Success!" -Type Success
             } catch {
                   Write-Message -Message " Extracting private key blob failed with error: `r`n$($_.Exception.Message)`r`n`r`nAborting ..." -Type Failure
@@ -232,6 +278,7 @@ $KeyBase64
             }
       }
 }
+$cert.Dispose()
 
 Write-Message -Message "#################################################################"
 Write-Message -Message " "

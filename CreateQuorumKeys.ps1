@@ -21,7 +21,7 @@
 #
 #################
 # 
-# by dagmar.heidecker@microsoft.com
+# by andreas.luy@microsoft.con & dagmar.heidecker@microsoft.com
 # 
 #
 .Synopsis
@@ -31,11 +31,10 @@
 .DESCRIPTION
     The script creates the required key material, stores it as PKCS12 enveloped file 
     and creates a Quorum certificate for uploading into the Azure Managed HSM
-    The key material can be created in software or in hardware (SmartCard) as long
-    as the smar card uses the default "Microsoft Smart Card Key Storage Provider"
+    The key material will currently be created in software only
 
 .EXAMPLE
-    .\CreateQuorumKeys.ps1 -Subject <subject name> [-ValidityTime <5-30> -KeyLength <2048,3084,4096>] [-Enroll2SmartCard]
+    .\CreateQuorumKeys.ps1 -Subject <subject name> [-ValidityTime <5-30> -KeyLength <2048,3084,4096>]
 
 .NOTES
     Version Tracking
@@ -100,6 +99,17 @@ function Decrypt-SecString
     return $Pwd
 }
 
+function Check-PoSPrereqs {
+      $ret = $true
+      
+      #PowerShell 7.x or higher required
+      if (($PSVersionTable.PSVersion.Major) -lt 7) {
+            $ret = $false
+      }
+      return $ret
+}
+
+
 ##
 ## main program starts here
 ##
@@ -134,6 +144,13 @@ if ($host.name -eq 'ConsoleHost') {
 
 #we assume all goes well
 $failed = $false
+if (!(Check-PoSPrereqs)) {
+      $failed = $true
+      Write-Message -Message "########################################################" 
+      Write-Message -Message "  PowerShell 7.x or higher is required for running this script!" -Type Failure
+      Write-Message -Message "########################################################"
+      Exit
+}
 
 Write-Message -Message "########################################################"
 Write-Message -Message "Starting Key Creation Ceremony at: $(Get-Date)"
@@ -187,7 +204,6 @@ if (!$failed) {
         Subject = $Subject 
         CertStoreLocation = "Cert:\CurrentUser\My" 
         KeyUsage = 'DigitalSignature'
-        KeySpec = 'Signature' 
         KeyAlgorithm = $KeyAlgo
         KeyLength  = $KeyLength 
         KeyExportPolicy = 'Exportable' 
