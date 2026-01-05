@@ -41,6 +41,9 @@
     Version 1.0
         - First internal release
         - 28.08.2025
+    Version 1.1
+        - clarifying result file types
+        - 05.01.2026
 
 #>
 
@@ -228,9 +231,9 @@ if (!$failed) {
         Write-Message -Message "exporting public key as certificate ..."
         #Export the certificate and private key to a DER encoded cer
         try {
-            Export-Certificate -Cert $cert -FilePath "$($CertExportFileName).cer" -ErrorAction stop
-            certutil -encode -f "$($CertExportFileName).cer" "$($CertExportFileName).pem"
-            Write-Message -Message " Public key successfully exported as $($CertExportFileName).pem!" -Type Success
+            Export-Certificate -Cert $cert -FilePath "$($CertExportFileName).der.cer" -ErrorAction stop
+            certutil -encode -f "$($CertExportFileName).der.cer" "$($CertExportFileName).b64.cer"
+            Write-Message -Message " Public key successfully exported as $($CertExportFileName)b64.cer!" -Type Success
         } catch {
             Write-Message -Message " Export of public key failed with error:`r`n$($_.Exception.Message)`r`n`r`nAborting ..." -Type Failure
             $failed = $true
