@@ -24,6 +24,7 @@
 # by andreas.luy@microsoft.con & dagmar.heidecker@microsoft.com
 # 
 #
+#
 .Synopsis
     This script extracts the private key from earlier created protected P12 files and
     writes it into an unproteced PEM file to recover Azure Cloud HSM Security Domain
@@ -40,7 +41,14 @@
     Version 1.0
         - First internal release
         - 04.09.2025
-
+    Version 1.1
+        - ensuring pkcs8 compatible key file
+        - 05.01.2026
+    Version 1.2
+        - ensuring compatible file names
+        - non-standard file naming :-(
+        - 09.02.2026
+      
 #>
 Param (
     [Parameter(Mandatory=$false)]
@@ -249,8 +257,8 @@ if (!$failed) {
             Write-Message -Message " Extracting private key blob ..."
             try {
                   #Get private key as bytes array (blob)
-                  $KeyBytes = $rsaCng.ExportRSAPrivateKey()
                   #$KeyBytes = $RSACng.Key.Export([Security.Cryptography.CngKeyBlobFormat]::Pkcs8PrivateBlob)
+                  $RSACngPrivKey = $RSACng.ExportPkcs8PrivateKey()
                   Write-Message -Message " Success!" -Type Success
             } catch {
                   Write-Message -Message " Extracting private key blob failed with error: `r`n$($_.Exception.Message)`r`n`r`nAborting ..." -Type Failure
@@ -262,7 +270,10 @@ if (!$failed) {
             Write-Message -Message " Converting private key to base64 PEM ..."
             try {
                   #convert byte array to base64 string
-                  $KeyBase64 = [Convert]::ToBase64String($KeyBytes, [Base64FormattingOptions]::InsertLineBreaks)
+                  #$KeyBase64 = [Convert]::ToBase64String($KeyBytes, [Base64FormattingOptions]::InsertLineBreaks)
+                  $KeyBase64 = [System.Convert]::ToBase64String($RSACngPrivKey)
+                  #$KeyBase64 = $KeyBase64 -replace '.{64}', "`$&`r"
+                  $KeyBase64Lines  = $Keybase64 -split "(.{1,64})" | Where-Object { $_ -ne "" } 
                   Write-Message -Message " Success!" -Type Success
             } catch {
                   Write-Message -Message " Coverting private key failed with error: `r`n$($_.Exception.Message)`r`n`r`nAborting ..." -Type Failure
@@ -271,16 +282,13 @@ if (!$failed) {
       }
 
       if (!$failed) {
-            Write-Message -Message " Writing private key to PEM key file: $($KeyFileName) ..."
+            Write-Message -Message " Writing private key to PEM key (base64 encoded) file: $($KeyFileName) ..."
 
             try {
                   #include base64 string into mandatory envelop
-                  $KeyPem = @"
------BEGIN RSA PRIVATE KEY-----
-$KeyBase64
------END RSA PRIVATE KEY-----
-"@
-                  $KeyPem | Out-File -Encoding utf8 $KeyFileName -ErrorAction Stop
+                  $keypem    = @("-----BEGIN PRIVATE KEY-----") + $keybase64lines + @("-----END PRIVATE KEY-----")
+                  #$KeyPem | Out-File -Encoding utf8 $KeyFileName -ErrorAction Stop
+                  [System.IO.File]::WriteAllLines($keyfilename, $keypem)
                   Write-Message -Message " Success!" -Type Success
             } catch {
                   Write-Message -Message " Could not write private key to PEM file with error: `r`n$($_.Exception.Message)`r`n`r`nAborting ..." -Type Failure
